@@ -16,7 +16,7 @@ Id = SE3.Identity(1, device="cuda")
 
 
 class DPVO:
-    def __init__(self, cfg, network, ht=480, wd=640, viz=False):
+    def __init__(self, cfg, network, ht=480, wd=640, viz=False, use_viser_viewer=True):
         self.cfg = cfg
         self.load_weights(network)
         self.is_initialized = False
@@ -83,6 +83,7 @@ class DPVO:
         self.delta = {}
 
         self.viewer = None
+        self.use_viser_viewer = use_viser_viewer
         if viz:
             self.start_viewer()
 
@@ -115,16 +116,24 @@ class DPVO:
 
 
     def start_viewer(self):
-        from dpviewer import Viewer
+        if self.use_viser_viewer:
+            from .viser_viewer import ViserViewer
+            self.viewer = ViserViewer(
+                self.image_,
+                self.poses_,
+                self.points_,
+                self.colors_,
+                self.intrinsics_)
+        else:
+            from dpviewer import Viewer
 
-        intrinsics_ = torch.zeros(1, 4, dtype=torch.float32, device="cuda")
-
-        self.viewer = Viewer(
-            self.image_,
-            self.poses_,
-            self.points_,
-            self.colors_,
-            intrinsics_)
+            intrinsics_ = torch.zeros(1, 4, dtype=torch.float32, device="cuda")
+            self.viewer = Viewer(
+                self.image_,
+                self.poses_,
+                self.points_,
+                self.colors_,
+                intrinsics_)
 
     @property
     def poses(self):
@@ -322,7 +331,10 @@ class DPVO:
             raise Exception(f'The buffer size is too small. You can increase it using "--buffer {self.N*2}"')
 
         if self.viewer is not None:
-            self.viewer.update_image(image)
+            if self.use_viser_viewer:
+                self.viewer.update_image(self.n)
+            else:
+                self.viewer.update_image(image)
 
         image = 2 * (image[None,None] / 255.0) - 0.5
         

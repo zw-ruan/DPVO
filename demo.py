@@ -4,9 +4,12 @@ import glob
 import os.path as osp
 import os
 import torch
+import torch.multiprocessing as mp
 from pathlib import Path
 from multiprocessing import Process, Queue
 from plyfile import PlyElement, PlyData
+
+import tqdm
 
 from dpvo.utils import Timer
 from dpvo.dpvo import DPVO
@@ -34,7 +37,10 @@ def run(cfg, network, imagedir, calib, stride=1, skip=0, viz=False, timeit=False
 
     reader.start()
 
+    pbar = tqdm.tqdm()
     while 1:
+        pbar.update(1)
+
         (t, image, intrinsics) = queue.get()
         if t < 0: break
 
@@ -49,8 +55,9 @@ def run(cfg, network, imagedir, calib, stride=1, skip=0, viz=False, timeit=False
 
         with Timer("SLAM", enabled=timeit):
             slam(t, image, intrinsics)
+    pbar.close()
 
-    for _ in range(12):
+    for idx in range(12):
         slam.update()
 
     reader.join()
@@ -82,6 +89,8 @@ if __name__ == '__main__':
     parser.add_argument('--save_reconstruction', action="store_true")
     parser.add_argument('--save_trajectory', action="store_true")
     args = parser.parse_args()
+
+    mp.set_start_method('spawn')
 
     cfg.merge_from_file(args.config)
     cfg.BUFFER_SIZE = args.buffer
